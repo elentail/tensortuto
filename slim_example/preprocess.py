@@ -40,6 +40,10 @@ class PreParser(object):
 
     def process(self):
         label , image_set = self._get_files_and_class()
+
+        with open('labels.txt','w') as wdata:
+            for idx,name in enumerate(label):
+                wdata.write('%d:%s\n'%(idx,name))
         np.random.shuffle(image_set)
 
         train_len = int(len(image_set)*TRAIN_RATIO)   
@@ -47,8 +51,8 @@ class PreParser(object):
         train_set = image_set[0:train_len]
         validation_set = image_set[train_len:]
 
-        self._convert_data('train',label,train_set) 
-        self._convert_data('validation',label,validation_set)
+        self._write_tfrecord('train',label,train_set) 
+        self._write_tfrecord('validation',label,validation_set)
 
         return
 
@@ -60,23 +64,41 @@ class PreParser(object):
 
         return img
 
+    def _read_tfrecord(self):
+        """ To do implementation
+        """
+        return
     
-    def _convert_data(self,data_type,label_list,file_list):
-        record_name = '.'.join([self.dataset_name,data_type])
+    def _write_tfrecord(self,data_type,label_list,file_list):
+    
+        """ Convert a list of labels and files to TFRecord format.
+        Args:
+            data_type : train or validation type
+            label_list : 
+            file_list
+        """
+        record_name = '{}_{}.tfrecord'.format(self.dataset_name,data_type)
         # open the TFRecords file
         with tf.python_io.TFRecordWriter(record_name) as record_writer:
             for f in file_list:
 
                 class_key = f.split(os.path.sep)[-2]
+                label_index = label_list.index(class_key)
                 print(f)
 
                 img = self._load_image_cv(f)
+                """
+                'image/encoded': bytes_feature(image_data),
+                'image/format': bytes_feature(image_format),
+                'image/class/label': int64_feature(class_id),
+                'image/height': int64_feature(height),
+                'image/width': int64_feature(width),
+                """
 
-                label_index = label_list.index(class_key)
                 # Create a feature
                 feature = {\
-                data_type+'/label': _int64_feature(label_index),\
-                data_type+'/image': _bytes_feature(tf.compat.as_bytes(img.tostring()))\
+                'image/class/label': _int64_feature(label_index),\
+                'image/encoded': _bytes_feature(tf.compat.as_bytes(img.tostring()))\
                 }
                 # Create an example protocol buffer
                 example = tfExample(features=tf.train.Features(feature=feature))
