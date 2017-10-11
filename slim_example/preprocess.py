@@ -11,6 +11,7 @@ import tensorflow as tf
 
 PREFIX_SIZE = (290,290)
 VALIDATION_RATIO = 0.2
+TRAIN_RATIO = 1 - VALIDATION_RATIO
 
 tfExample = tf.train.Example
 
@@ -38,8 +39,17 @@ class PreParser(object):
 
 
     def process(self):
-        label , image_path = self._get_files_and_class()
-        self._convert_data('train',image_path) 
+        label , image_set = self._get_files_and_class()
+        np.random.shuffle(image_set)
+
+        train_len = int(len(image_set)*TRAIN_RATIO)   
+
+        train_set = image_set[0:train_len]
+        validation_set = image_set[train_len:]
+
+        self._convert_data('train',label,train_set) 
+        self._convert_data('validation',label,validation_set)
+
         return
 
     def _load_image_cv(self,image_path):
@@ -50,16 +60,20 @@ class PreParser(object):
 
         return img
 
-    def _convert_data(self,data_type,file_list):
+    def _convert_data(self,data_type,label_list,file_list):
         # open the TFRecords file
         with tf.python_io.TFRecordWriter(data_type) as record_writer:
             for f in file_list:
+
+                class_key = f.split(os.path.sep)[-2]
+                print(f)
+
                 img = self._load_image_cv(f)
 
-                label = 0
+                label_index = label_list.index(class_key)
                 # Create a feature
                 feature = {\
-                data_type+'/label': _int64_feature(label),\
+                data_type+'/label': _int64_feature(label_index),\
                 data_type+'/image': _bytes_feature(tf.compat.as_bytes(img.tostring()))\
                 }
                 # Create an example protocol buffer
