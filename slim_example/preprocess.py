@@ -22,10 +22,10 @@ tfExample = tf.train.Example
 #
 
 
-def _int64_feature(value):
+def int64_feature(value):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
-def _bytes_feature(value):
+def bytes_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
@@ -51,9 +51,11 @@ class PreParser(object):
         train_set = image_set[0:train_len]
         validation_set = image_set[train_len:]
 
+
         self._write_tfrecord('train',label,train_set) 
         self._write_tfrecord('validation',label,validation_set)
 
+        print("TRAIN_SIZE=%d,VALIDATION_SIZE=%d"%(len(train_set),len(validation_set)))
         return
 
     def _load_image_cv(self,image_path):
@@ -83,10 +85,16 @@ class PreParser(object):
             for f in file_list:
 
                 class_key = f.split(os.path.sep)[-2]
+                img_format = (f.split(os.path.extsep)[-1])
                 label_index = label_list.index(class_key)
                 print(f)
 
+                # to be modified
+                #
                 img = self._load_image_cv(f)
+                ht,wd = np.shape(img)[:2]
+                img_gfile = tf.gfile.FastGFile(f,'rb').read()
+
                 """
                 'image/encoded': bytes_feature(image_data),
                 'image/format': bytes_feature(image_format),
@@ -97,8 +105,12 @@ class PreParser(object):
 
                 # Create a feature
                 feature = {\
-                'image/class/label': _int64_feature(label_index),\
-                'image/encoded': _bytes_feature(tf.compat.as_bytes(img.tostring()))\
+                'image/encoded': bytes_feature(img_gfile),\
+                #'image/format': bytes_feature(img_format),\
+                'image/format': bytes_feature(b'jpg'),\
+                'image/class/label': int64_feature(label_index),\
+                'image/height': int64_feature(ht),\
+                'image/width': int64_feature(wd),\
                 }
                 # Create an example protocol buffer
                 example = tfExample(features=tf.train.Features(feature=feature))
