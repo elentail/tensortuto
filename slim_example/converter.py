@@ -1,25 +1,24 @@
-
+"""
+http://roadcom.tistory.com
+"""
 from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
 
+
+
 import os,re,sys,cv2
 import numpy as np
 import tensorflow as tf
+import argparse
 
 
-PREFIX_SIZE = (290,290)
+PREFIX_SIZE = (299,299)
 VALIDATION_RATIO = 0.2
 TRAIN_RATIO = 1 - VALIDATION_RATIO
 
 tfExample = tf.train.Example
-
-
-#
-# http://www.machinelearninguru.com/deep_learning/tensorflow/basics/tfrecord/tfrecord.html
-#
-#
 
 
 def int64_feature(value):
@@ -30,7 +29,7 @@ def bytes_feature(value):
 
 
 
-class PreParser(object):
+class ImageConverter(object):
     
     def __init__(self,*args,**kwargs):
     
@@ -59,12 +58,21 @@ class PreParser(object):
         return
 
     def _load_image_cv(self,image_path):
+
+        """ I have used opencv imread to get image dimension without tf graph
+
+        *reference
+
+        http://www.machinelearninguru.com/deep_learning/tensorflow/basics/tfrecord/tfrecord.html
+
+        """
+
         img = cv2.imread(image_path)
         img = cv2.resize(img,PREFIX_SIZE,interpolation=cv2.INTER_CUBIC)
         img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
         img = img.astype(np.float32)
-
         return img
+
 
     def _read_tfrecord(self):
         """ To do implementation
@@ -89,28 +97,21 @@ class PreParser(object):
                 label_index = label_list.index(class_key)
                 print(f)
 
-                # to be modified
-                #
+                # Get the Image dim using opencv 
                 img = self._load_image_cv(f)
                 ht,wd = np.shape(img)[:2]
+
+                # follwing is an example using .. tf graph
+                #tf_method = tf.image.decode_jpeg(tf.placeholder(tf.string),channel=3)
+                #sess.run(tf_method,feed_dict={XX:image_data})
+
                 img_gfile = tf.gfile.FastGFile(f,'rb').read()
-
-                """
-                'image/encoded': bytes_feature(image_data),
-                'image/format': bytes_feature(image_format),
-                'image/class/label': int64_feature(class_id),
-                'image/height': int64_feature(height),
-                'image/width': int64_feature(width),
-                """
-
-                # Create a feature
                 feature = {\
-                'image/encoded': bytes_feature(img_gfile),\
-                #'image/format': bytes_feature(img_format),\
-                'image/format': bytes_feature(b'jpg'),\
-                'image/class/label': int64_feature(label_index),\
-                'image/height': int64_feature(ht),\
-                'image/width': int64_feature(wd),\
+                    'image/encoded': bytes_feature(img_gfile),\
+                    'image/format': bytes_feature(b'jpg'),\
+                    'image/class/label': int64_feature(label_index),\
+                    'image/height': int64_feature(ht),\
+                    'image/width': int64_feature(wd),\
                 }
                 # Create an example protocol buffer
                 example = tfExample(features=tf.train.Features(feature=feature))
@@ -120,6 +121,24 @@ class PreParser(object):
         return
 
     def _get_files_and_class(self):
+        """Extract labels and imae file path through given {dataset_dir}
+        Args:
+            data_type : train or validation type
+            label_list : class 
+            file_list : file path
+
+            *if dataset tree is given as
+
+             class1
+                -1.jpg, 2.jpg, 3.jpg
+             class2
+                -4.jpg, 5.jpg, 6.jpg
+             class3
+                -7.jpg, 8.jpg, 9.jpg
+
+             label_list = [class1, class2, class3]   
+             file_list = [class1/1.jpg, class1/2.jpg ...]
+        """
 
         _path = os.path.dirname(self.dataset_dir)
         current_depth = _path.count(os.path.sep)
@@ -137,8 +156,17 @@ class PreParser(object):
                 image_list += [root+os.path.sep+f for f in files]
             else:
                 break
+        image_list = list(filter(lambda x:re.search('\.(jpg|jpeg)',str(x).lower()),image_list))
         return class_list,image_list
 
 if __name__ == '__main__':
-    parser = PreParser(dataset_dir='./',dataset_name='birds')
-    parser.process()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset_dir",help="dataset path")
+    parser.add_argument("--dataset_name",default='birds' )
+    if(len(sys.argv) != 3):
+        parser.print_help()
+        parser.exit()
+
+    params = parser.parse_args()
+    img_converter = ImageConverter(dataset_dir=params.dataset_dir,dataset_name=params.dataset_name)
+    img_converter.process()
