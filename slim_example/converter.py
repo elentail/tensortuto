@@ -167,6 +167,5 @@ if __name__ == '__main__':
         parser.exit()
 
     params = parser.parse_args()
-    print(params)
     img_converter = ImageConverter(dataset_dir=params.dataset_dir,dataset_name=params.dataset_name)
     img_converter.process()
